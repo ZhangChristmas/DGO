@@ -1,10 +1,11 @@
 # ultimate_morph_generator/structure_guard/advanced_topology/persistent_homology.py
+import cv2
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional
 
-from ....config import get_config, AdvancedTopologyConfig  # Adjust relative import for config
-from ....utilities.type_definitions import CvImage
-from ....utilities.logging_config import setup_logging
+from ...config import get_config, AdvancedTopologyConfig  # Adjust relative import for config
+from ...utilities.type_definitions import CvImage
+from ...utilities.logging_config import setup_logging
 
 logger = setup_logging()
 
@@ -276,7 +277,7 @@ class PersistentHomologyAnalyzer:
 
 if __name__ == "__main__":
     # --- Test PersistentHomologyAnalyzer ---
-    from .....config import SystemConfig  # Adjust relative import for test
+    from ...config import SystemConfig  # Adjust relative import for test
 
     temp_sys_cfg_data_ph = {
         "structure_guard": {

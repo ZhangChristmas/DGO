@@ -1,4 +1,6 @@
 # ultimate_morph_generator/perturbation_suite/stroke_engine/stroke_extractor.py
+import os
+
 import cv2
 import numpy as np
 from skimage.morphology import skeletonize  # type: ignore # For skeletonization
@@ -228,7 +230,7 @@ class StrokeExtractor:
 
 if __name__ == "__main__":
     # --- Test StrokeExtractor ---
-    from ....config import SystemConfig  # Adjust relative import based on test execution context
+    from ...config import SystemConfig  # Adjust relative import based on test execution context
 
     # Create a dummy config for testing StrokeEngineConfig
     temp_stroke_engine_cfg_data = {

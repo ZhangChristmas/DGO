@@ -1,4 +1,7 @@
 # ultimate_morph_generator/dgo_oracle/training_engine.py
+from random import random
+
+import cv2
 import torch
 import torch.nn as nn
 import torch.optim as optim

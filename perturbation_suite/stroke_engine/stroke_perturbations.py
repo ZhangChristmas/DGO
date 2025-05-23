@@ -188,7 +188,7 @@ if __name__ == "__main__":
     # --- Test StrokePerturber ---
     # Needs StrokeExtractor to provide strokes first.
     from .stroke_extractor import StrokeExtractor  # For test dependency
-    from ....config import SystemConfig  # Adjust relative import
+    from ...config import SystemConfig  # Adjust relative import
 
     # Config for stroke engine
     temp_sys_cfg_data_stroke_eng = {

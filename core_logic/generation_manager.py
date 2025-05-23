@@ -1,6 +1,9 @@
 # ultimate_morph_generator/core_logic/generation_manager.py
+import os
 import time
 import random
+
+import cv2
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 from collections import deque
@@ -495,7 +498,7 @@ if __name__ == "__main__":
     # For a simple test run, many features might be disabled or use defaults.
 
     # Use a minimal config for testing the loop flow
-    from ....config import SystemConfig  # Adjust relative import
+    from ..config import SystemConfig  # Adjust relative import
 
     # Path for dummy initial 'X' sample
     dummy_initial_X_dir = "./temp_initial_gm_test/char_X/"
@@ -564,7 +567,7 @@ if __name__ == "__main__":
     if 'num_initial_seeds' not in GenerationManagerConfig.model_fields:
         test_sys_cfg_data_gm["generation_manager"]['num_initial_seeds'] = 1
 
-    from ....config import _config_instance  # Adjust relative import
+    from ..config import _config_instance  # Adjust relative import
 
     _config_instance = SystemConfig.model_validate(test_sys_cfg_data_gm)
 

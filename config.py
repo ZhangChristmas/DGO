@@ -118,7 +118,7 @@ class DGOTrainingConfig(BaseModel):
 
 
 class DGOOracleConfig(BaseModel):
-    model_architecture: DGOModelArchitectureLiteral = "ResNetVariant"
+    architecture: DGOModelArchitectureLiteral = "ResNetVariant"
     num_classes: int = Field(10, ge=2)
     pretrained_model_path: Optional[FilePath] = None
     feature_extraction_layer_name: Optional[str] = "avgpool"  # 模型中用于提取特征的层名, e.g., 'avgpool', 'fc1'

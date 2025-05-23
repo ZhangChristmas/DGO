@@ -91,7 +91,7 @@ class StoppingConditionChecker:
 
 if __name__ == "__main__":
     # --- Test StoppingConditionChecker ---
-    from ....config import SystemConfig  # Adjust relative import
+    from ..config import SystemConfig  # Adjust relative import
 
     temp_sys_cfg_data_stop = {
         "generation_manager": {

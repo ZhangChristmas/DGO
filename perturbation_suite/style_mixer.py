@@ -5,9 +5,9 @@ import os
 import random
 from typing import List, Tuple, Dict, Any, Optional
 
-from ...config import get_config, StyleMixerConfig
-from ...utilities.type_definitions import CvImage
-from ...utilities.logging_config import setup_logging
+from ..config import get_config, StyleMixerConfig
+from ..utilities.type_definitions import CvImage
+from ..utilities.logging_config import setup_logging
 
 logger = setup_logging()
 
@@ -240,7 +240,7 @@ class StyleMixer:
 
 if __name__ == "__main__":
     # --- Test StyleMixer ---
-    from ....config import SystemConfig  # Adjust relative import
+    from ..config import SystemConfig  # Adjust relative import
 
     # Create dummy style source directory and images
     dummy_style_dir = "./temp_style_sources/"

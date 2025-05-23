@@ -221,11 +221,11 @@ class CandidateQualityAssessor:
 
 if __name__ == "__main__":
     # --- Test CandidateQualityAssessor ---
-    from .....config import SystemConfig  # Adjust relative import
-    from ....dgo_oracle.dgo_model_handler import DGOModelHandler  # For dummy DGO
-    from ....structure_guard import StructureGuard, compute_reference_ph_signature_for_char  # For dummy SG
-    from ....feature_analysis.advanced_hashing import AdvancedFeatureHasher
-    from ....feature_analysis.diversity_metrics import LibraryDiversityAnalyzer
+    from ..config import SystemConfig  # Adjust relative import
+    from ..dgo_oracle.dgo_model_handler import DGOModelHandler  # For dummy DGO
+    from ..structure_guard import StructureGuard, compute_reference_ph_signature_for_char  # For dummy SG
+    from ..feature_analysis.advanced_hashing import AdvancedFeatureHasher
+    from ..feature_analysis.diversity_metrics import LibraryDiversityAnalyzer
 
     # Create dummy config for testing
     temp_sys_cfg_data_qa = {

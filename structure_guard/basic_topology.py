@@ -3,9 +3,9 @@ import cv2
 import numpy as np
 from typing import List, Tuple, Dict, Any, Optional
 
-from ...config import get_config, BasicTopologyConfig, StructureGuardConfig
-from ...utilities.type_definitions import CvImage
-from ...utilities.logging_config import setup_logging
+from ..config import get_config, BasicTopologyConfig, StructureGuardConfig
+from ..utilities.type_definitions import CvImage
+from ..utilities.logging_config import setup_logging
 
 logger = setup_logging()
 

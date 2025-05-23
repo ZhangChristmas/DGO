@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 from typing import Optional, Union, List, Callable, Dict
 import cv2  # For heatmap visualization
+from torch import nn
 
 from ..config import get_config
 from ..utilities.image_utils import preprocess_image_for_dgo, tensor_to_np_cv

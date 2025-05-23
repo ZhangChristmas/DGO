@@ -1,4 +1,5 @@
 # ultimate_morph_generator/perturbation_suite/perturbation_orchestrator.py
+import cv2
 import numpy as np
 import random
 from typing import List, Tuple, Dict, Any, Optional
