@@ -2,6 +2,7 @@
 from pydantic import BaseModel, Field, DirectoryPath, FilePath
 from typing import List, Tuple, Dict, Optional, Literal, Union
 import torch
+import yaml
 
 # --- Helper Enums and Literals ---
 DeviceLiteral = Literal["cpu", "cuda", "mps", "auto"]
@@ -175,15 +176,15 @@ class LoggingConfig(BaseModel):
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 
-class SystemConfig(BaseModel):
+class SystemConfig(BaseModel):  # (保持不变，除了添加 from_dict/from_yaml 方法)
     project_name: str = "UltimateMorphGenerator"
     version: str = "1.0.0"
-    target_character_index: int = Field(3, ge=0)  # '3' 在0-9中的索引
-    target_character_string: str = "3"  # 字符本身的表示
-    confusable_character_indices: List[int] = Field(default_factory=lambda: [2, 8])  # 易混淆字符的索引
+    target_character_index: int = Field(3, ge=0)
+    target_character_string: str = "3"
+    confusable_character_indices: List[int] = Field(default_factory=lambda: [2, 8])
 
     random_seed: Optional[int] = 42
-    device: DeviceLiteral = "auto"  # "cpu", "cuda", "mps", or "auto" to detect
+    device: DeviceLiteral = "auto"
 
     data_management: DataManagementConfig = Field(default_factory=DataManagementConfig)
     dgo_oracle: DGOOracleConfig = Field(default_factory=DGOOracleConfig)
@@ -193,73 +194,105 @@ class SystemConfig(BaseModel):
     generation_manager: GenerationManagerConfig = Field(default_factory=GenerationManagerConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
-    # 高级引导智能 (RL/EA) - 占位
-    # guidance_intelligence_enabled: bool = False
-    # guidance_config: Optional[Dict] = None
-
-    def get_actual_device(self) -> torch.device:
+    def get_actual_device(self) -> torch.device:  # (保持不变)
         if self.device == "auto":
             if torch.cuda.is_available():
                 return torch.device("cuda")
-            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():  # For Apple Silicon
+            elif torch.backends.mps.is_available() and torch.backends.mps.is_built():
                 return torch.device("mps")
             else:
                 return torch.device("cpu")
         return torch.device(self.device)
 
+    @classmethod
+    def from_yaml(cls, file_path: str) -> "SystemConfig":
+        """Loads configuration from a YAML file."""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Configuration YAML file not found: {file_path}")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        if data is None:  # Handle empty YAML file
+            raise ValueError(f"YAML file is empty or invalid: {file_path}")
+        return cls.model_validate(data)  # Pydantic v2 method
 
-# 全局配置实例 (可以从YAML文件加载)
-# cfg = SystemConfig() # 默认配置
-# Example of loading from a YAML (if you implement a load_from_yaml method)
-# cfg = SystemConfig.load_from_yaml("path_to_config.yaml")
+    def to_yaml(self, file_path: str):
+        """Saves the current configuration to a YAML file."""
+        # Pydantic's model_dump is preferred for serialization
+        # mode='python' ensures enums are dumped as their values, etc.
+        # exclude_none=True can be useful to keep YAML cleaner if many Optionals are None
+        config_dict = self.model_dump(mode='json', exclude_none=False)  # 'json' mode is good for YAML
+
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Ensure directory exists
+        with open(file_path, 'w', encoding='utf-8') as f:
+            yaml.dump(config_dict, f, sort_keys=False, indent=2, allow_unicode=True)
+        print(f"Configuration saved to YAML: {file_path}")
+
 
 # --- Main function to load or create default config ---
 _config_instance: Optional[SystemConfig] = None
 
 
-def get_config(config_file_path: Optional[str] = None) -> SystemConfig:
+def get_config(config_file_path: Optional[str] = None, reload: bool = False) -> SystemConfig:  # Added reload flag
     """
-    Loads the system configuration from a YAML file or returns a default.
-    Singleton pattern for config instance.
+    Loads the system configuration from a YAML file or returns/creates a default.
+    Singleton pattern for config instance unless reload is True.
     """
     global _config_instance
-    if _config_instance is None:
+    if _config_instance is None or reload:  # Load if not loaded or if reload is forced
         if config_file_path and os.path.exists(config_file_path):
-            # 这里你需要实现从YAML加载到Pydantic模型的逻辑
-            # 例如使用 PyYAML 和 Pydantic的 model_validate 方法
-            # from pydantic import RootModel
-            # import yaml
-            # with open(config_file_path, 'r') as f:
-            #     data = yaml.safe_load(f)
-            # _config_instance = SystemConfig.model_validate(data)
-            print(
-                f"Warning: Config file loading from YAML ({config_file_path}) not fully implemented here. Using default config.")
-            _config_instance = SystemConfig()  # Placeholder
-        else:
-            if config_file_path:
+            try:
+                print(f"Loading configuration from YAML: {config_file_path}")
+                _config_instance = SystemConfig.from_yaml(config_file_path)
+            except FileNotFoundError:  # Should be caught by from_yaml but as fallback
                 print(f"Warning: Config file {config_file_path} not found. Using default config.")
+                _config_instance = SystemConfig()
+            except Exception as e:
+                print(f"Error loading configuration from {config_file_path}: {e}. Using default config.")
+                _config_instance = SystemConfig()
+        else:
+            if config_file_path:  # Path given but does not exist
+                print(
+                    f"Warning: Config file path '{config_file_path}' provided but file not found. Using default config.")
+            else:  # No path given
+                print("No configuration file path provided. Using default config.")
             _config_instance = SystemConfig()
     return _config_instance
 
 
 if __name__ == "__main__":
-    import os
+    # --- Example of using the YAML loading/saving ---
 
-    # 示例: 获取配置
-    default_cfg = get_config()
-    print(f"Project Name: {default_cfg.project_name}")
-    print(f"DGO Model: {default_cfg.dgo_oracle.model_architecture}")
-    print(f"Target Char: {default_cfg.target_character_string}")
-    print(f"Device: {default_cfg.get_actual_device()}")
+    # 1. Create and save a default configuration to YAML
+    default_cfg_instance = get_config(reload=True)  # Get a fresh default instance
+    default_yaml_path = "default_generated_config.yaml"
+    print(f"\nSaving default configuration to: {default_yaml_path}")
+    default_cfg_instance.to_yaml(default_yaml_path)
 
-    # 示例: 将默认配置保存为YAML (需要PyYAML)
-    # import yaml
-    # try:
-    #     output_yaml_path = "default_config.yaml"
-    #     with open(output_yaml_path, 'w') as f:
-    #         yaml.dump(default_cfg.model_dump(mode='python'), f, sort_keys=False, indent=2, allow_unicode=True)
-    #     print(f"Default configuration saved to {output_yaml_path}")
-    # except ImportError:
-    #     print("PyYAML not installed. Cannot save config to YAML.")
-    # except Exception as e:
-    #     print(f"Error saving config to YAML: {e}")
+    # 2. Load configuration from the saved YAML file
+    print(f"\nLoading configuration from: {default_yaml_path}")
+    loaded_cfg_from_yaml = get_config(config_file_path=default_yaml_path, reload=True)  # Force reload from file
+
+    # Verify some loaded values
+    print(f"Loaded Project Name: {loaded_cfg_from_yaml.project_name}")
+    print(f"Loaded DGO Model: {loaded_cfg_from_yaml.dgo_oracle.model_architecture}")
+    assert loaded_cfg_from_yaml.project_name == default_cfg_instance.project_name  # Simple check
+
+    # 3. Example of trying to load a non-existent file (should use defaults)
+    print("\nAttempting to load non-existent config (should use defaults):")
+    cfg_non_existent = get_config(config_file_path="non_existent_config.yaml", reload=True)
+    print(f"Project Name from non-existent load: {cfg_non_existent.project_name} (should be default)")
+    assert cfg_non_existent.project_name == "UltimateMorphGenerator"  # Assuming this is the default
+
+    # 4. Show how get_config acts as a singleton (without reload=True)
+    print("\nTesting singleton behavior of get_config():")
+    first_call_cfg = get_config(reload=True)  # Ensure fresh default
+    first_call_cfg.project_name = "ModifiedInFirstCall"  # Modify the instance
+
+    second_call_cfg = get_config()  # No path, no reload -> should return the modified instance
+    print(f"Project name from second call: {second_call_cfg.project_name}")
+    assert second_call_cfg.project_name == "ModifiedInFirstCall"
+
+    # Clean up the generated default YAML file
+    # if os.path.exists(default_yaml_path):
+    #     os.remove(default_yaml_path)
+    #     print(f"\nCleaned up {default_yaml_path}")

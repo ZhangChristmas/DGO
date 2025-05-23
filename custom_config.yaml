@@ -1,0 +1,228 @@
+# --- 项目基本信息 ---
+project_name: DGO # 项目名称
+version: 1.0.0    # 项目版本
+target_character_index: 3 # 目标字符在分类器中的索引 (例如，如果数字 '3' 是第3类)
+target_character_string: "3" # 目标字符的字符串表示 (用于日志、路径等)
+confusable_character_indices: # 目标字符容易混淆的其他字符的索引列表
+  - 2
+  - 8
+random_seed: 42 # 全局随机种子，用于可复现性 (设为 null 则不固定种子)
+device: auto # 计算设备: "cpu", "cuda", "mps" (Apple Silicon), 或 "auto" (自动检测)
+
+# --- 数据管理配置 ---
+data_management:
+  initial_samples_path_template: ./initial_data_pool/char_{char_string}/ # 初始种子样本的路径模板, {char_string} 会被替换
+  output_base_dir: ./generated_morphologies/ # 所有生成结果的根输出目录
+  database_filename: morphology_library.sqlite # 形态库SQLite数据库文件名
+  image_archive_subfolder: image_files # 在 output_base_dir/{char_string}/ 下存放生成图像的子文件夹名
+  image_file_format: .png # 保存生成图像的文件格式 (".png", ".jpg", ".bmp")
+  target_image_size: # DGO模型期望的输入图像尺寸 (高, 宽)
+    - 28 # Height / 高
+    - 28 # Width / 宽
+  grayscale_input: true # 输入图像是否为灰度图 (对于DGO模型)
+
+# --- 动态引导裁判 (DGO) 配置 ---
+dgo_oracle:
+  model_architecture: ResNetVariant # DGO模型架构: "BaseCNN", "ResNetVariant", "ViTSmall"
+  num_classes: 10 # DGO分类器输出的类别总数 (例如 MNIST 为10)
+  pretrained_model_path: null # (可选) 预训练DGO模型的 .pth 文件路径 (设为 null 则从头训练或随机初始化)
+  feature_extraction_layer_name: flatten_after_avgpool # DGO模型中用于提取语义特征向量的层名称 (例如 "avgpool", "relu3", "fc1")
+  uncertainty_method: mc_dropout # 不确定性量化方法: "none", "mc_dropout" (蒙特卡洛 Dropout), "ensemble" (集成)
+  mc_dropout_samples: 10 # 如果使用 mc_dropout, 进行前向传播采样的次数
+
+  # --- ResNetVariant 特定参数 (如果 model_architecture 是 "ResNetVariant") ---
+  resnet_initial_conv_stride: 1 # ResNet第一个卷积层的步长 (对于小图像通常设为1)
+  resnet_initial_pool_enabled: false # 是否启用ResNet的第一个最大池化层 (对于小图像通常禁用)
+  resnet_fc_features_out: 512 # ResNet 在进入最后全连接分类层之前的特征维度 (例如 ResNet18 是 512)
+  
+  # --- BaseCNN 特定参数 (如果 model_architecture 是 "BaseCNN") ---
+  # base_cnn_fc_features: 128 # BaseCNN 全连接层的特征维度
+  # base_cnn_dropout: 0.5 # BaseCNN Dropout比率
+
+  # --- ViTSmall 特定参数 (如果 model_architecture 是 "ViTSmall") ---
+  # vit_patch_size: 4 # ViT 的 patch 大小
+  # vit_embed_dim: 192 # ViT 的 embedding 维度
+  # vit_depth: 6 # ViT Transformer 块的层数
+  # vit_num_heads: 6 # ViT 多头注意力机制的头数
+  # vit_mlp_ratio: 3.0 # ViT MLP层的扩展比率
+  # vit_dropout: 0.1 # ViT Dropout比率
+  # vit_use_class_token: true # ViT 是否使用 [CLS] token
+
+  # --- DGO 训练参数 ---
+  training_params:
+    batch_size: 64 # 训练时的批处理大小
+    learning_rate: 0.001 # 学习率
+    epochs_initial_training: 5 # DGO 初始训练的轮数
+    epochs_finetuning: 2    # DGO 后续微调的轮数
+    optimizer: AdamW # 优化器类型: "Adam", "AdamW", "SGD", "RMSprop"
+    loss_function: CrossEntropyLoss # 损失函数: "CrossEntropyLoss", "NLLLoss"
+    weight_decay: 0.0001 # 权重衰减 (L2正则化)
+    scheduler_step_size: null # (可选) 学习率调度器的步长 (例如 StepLR)
+    scheduler_gamma: null   # (可选) 学习率调度器的衰减因子 (例如 StepLR)
+    use_self_supervised_pretraining: false # (高级功能占位) 是否使用自监督预训练
+    continual_learning_strategy: ewc # 持续学习策略: "none", "ewc", "si", "agem", "lwf"
+    ewc_lambda: 100.0 # EWC (Elastic Weight Consolidation) 正则化强度 (如果使用ewc)
+    si_lambda: 1.0    # SI (Synaptic Intelligence) 正则化强度 (如果使用si)
+    agem_buffer_size: 100 # A-GEM (Averaged Gradient Episodic Memory) 缓冲区大小 (如果使用agem)
+
+# --- 扰动套件配置 ---
+perturbation_suite:
+  max_attempts_per_parent: 20 # 对一个父本尝试扰动的最大次数
+  param_selection_strategy: random # 扰动参数选择策略: "random", "rl_guided", "ea_guided", "adaptive_bayesian" (后三者为高级功能)
+  max_perturb_sequence_len: 2 # (自定义字段，需在 PerturbationSuiteConfig 模型中定义) 一次应用扰动序列的最大长度
+  dgo_guided_perturb_probability: 0.1 # (自定义字段，需在 PerturbationSuiteConfig 模型中定义) 应用DGO引导性扰动的概率
+  
+  # --- 局部像素扰动配置 ---
+  local_pixel:
+    enabled: true # 是否启用此扰动方法
+    probability_of_application: 0.3 # 此扰动方法被选用的相对概率/权重
+    param_ranges: # 参数范围
+      neighborhood_size: [3, 5] # 邻域大小 (从列表中随机选择一个)
+      perturb_density: [0.01, 0.05] # 被扰动像素的密度 (从[min, max]范围均匀采样一个浮点数)
+      # intensity_noise_range: [-20, 20] # (示例) 如果添加像素强度噪声参数
+
+  # --- 弹性形变配置 ---
+  elastic_deformation:
+    enabled: true
+    probability_of_application: 0.4 
+    param_ranges:
+      alpha: [20.0, 50.0] # 变形强度 (alpha for albumentations)
+      sigma: [3.0, 6.0]   # 高斯核标准差 (sigma for albumentations)
+      alpha_affine: [0.0, 10.0] # 仿射部分强度 (alpha_affine for albumentations)
+
+  # --- 细微仿射变换配置 ---
+  fine_affine:
+    enabled: true
+    probability_of_application: 0.4
+    param_ranges:
+      max_rotation_degrees: 8.0 # 最大旋转角度 (实际旋转范围是 [-8.0, 8.0])
+      max_scale_delta: 0.12 # 最大缩放变化比例 (例如，0.12 表示缩放范围 [0.88, 1.12])
+      max_shear_degrees_x: 6.0 # X轴最大错切角度
+      max_shear_degrees_y: 6.0 # Y轴最大错切角度
+      translate_percent_x: [-0.04, 0.04] # X轴平移占图像宽度的百分比范围
+      translate_percent_y: [-0.04, 0.04] # Y轴平移占图像高度的百分比范围
+
+  # --- 基于形态学的笔画粗细调整配置 ---
+  stroke_thickness_morph:
+    enabled: true 
+    probability_of_application: 0.1
+    param_ranges:
+      operation_type: ["dilate", "erode"] # 操作类型 (膨胀或腐蚀)
+      kernel_size: [3] # 形态学操作的核大小
+
+  # --- 笔画引擎扰动配置 (高级功能) ---
+  stroke_engine_perturbations:
+    enabled: false # 除非笔画引擎实现完善，否则保持false
+    extractor_type: skeletonization_vectorization # 笔画提取方法: "skeletonization_vectorization" (传统CV), "deep_learning_model" (DL模型)
+    deep_learning_model_path: null # (如果使用DL模型) 预训练笔画提取模型路径
+    min_stroke_length: 5 # 被认为是有效笔画的最小像素长度
+    perturbation_probability: 0.3 # 对提取出的单个笔画进行扰动的概率
+    # (自定义字段，需在 StrokeEngineConfig 模型中定义)
+    # thickness_change_abs_max: 2 # 笔画厚度绝对变化最大值
+    # point_displacement_scale: 0.03 # 笔画点位移相对于图像尺寸的比例
+    # control_point_bend_scale: 0.08 # 笔画弯曲控制点位移的比例
+
+  # --- 风格混合器配置 (高级功能) ---
+  style_mixer:
+    enabled: false # 除非风格混合器实现完善，否则保持false
+    style_source_dir: null # 风格参考图像/纹理所在的目录路径
+    strength_range: [0.05, 0.2] # 风格混合强度范围
+    # (自定义字段，需在 StyleMixerConfig 模型中定义)
+    # use_deep_learning_model: false # 是否使用DL风格迁移模型
+    # deep_learning_style_model_path: null # DL风格迁移模型路径
+
+# --- 结构保持检查配置 ---
+structure_guard:
+  # --- 基础拓扑检查配置 ---
+  basic_topology:
+    enabled: true
+    rules_for_char: # 针对不同字符的特定规则
+      "3": # 目标字符 '3' 的规则
+        char_threshold: 100 # 二值化阈值
+        min_hole_area: 8    # 被认为是有效孔洞的最小面积 (像素)
+        expected_holes: 0   # 期望的孔洞数量 (对于标准 '3' 通常认为是0个完全闭合的孔)
+        expected_connected_components: 1 # 期望的连通分量数量
+        expected_openings: 2 # (概念性) 期望的开口数量
+        opening_directions: ["right", "right"] # (概念性) 期望的开口方向列表
+      "8": # 易混淆字符 '8' 的示例规则
+        char_threshold: 100
+        min_hole_area: 5
+        expected_holes: 2
+        expected_connected_components: 1
+  
+  # --- 高级拓扑检查配置 (高级功能) ---
+  advanced_topology:
+    enabled: false # 除非相关库(Gudhi, NetworkX)已安装且模块实现完善，否则保持false
+    # --- 持久同调参数 ---
+    persistent_homology_params:
+      enabled: false # 是否启用持久同调检查 (也可以在此级别控制)
+      binarization_threshold: 100 # 持久同调分析前图像二值化的阈值
+      min_persistence_for_comparison: 50.0 # 被认为是显著拓扑特征的最小持久化值 (对于0-255图像，此值可能较大)
+      dim0_feature_tolerance: 0 # 0维特征 (连通分量) 数量的容差
+      dim1_feature_tolerance: 0 # 1维特征 (孔洞) 数量的容差
+      allow_mock_if_gudhi_unavailable: true # 如果Gudhi库不可用，是否允许使用模拟数据 (用于测试流程)
+    # --- 图表示参数 ---
+    graph_representation_params:
+      enabled: false # 是否启用图表示检查
+      comparison_method: isomorphism_check # 图比较方法: "isomorphism_check", "edit_distance", "similarity_score"
+      node_match_attributes: ["type"] # 进行图同构匹配时需要匹配的节点属性列表 (例如节点类型)
+      # edge_match_attributes: [] # 进行图同构匹配时需要匹配的边属性列表
+
+# --- 特征分析与多样性配置 ---
+feature_analysis:
+  hashing_method: simhash_projection # 特征哈希方法: "simhash_projection", "thresholding", "multi_scale_concat", "learned_hash"
+  hash_length: 64 # 生成的哈希码长度
+  novelty_hamming_distance_threshold_ratio: 0.15 # 新颖性判断的汉明距离阈值 (占哈希长度的比例)
+  diversity_strategy: novelty_only # 多样性策略: "novelty_only" (仅基于新颖性), "explore_low_density" (探索特征空间低密度区域), "coverage_maximization" (最大化覆盖范围)
+  feature_space_density_estimator: kde # (如果使用 explore_low_density) 特征空间密度估计算法: "kde" (核密度估计), "grid_count" (网格计数)
+  kde_bandwidth: 0.5 # (如果使用kde) 核密度估计的带宽
+  # (自定义字段，需在 FeatureAnalysisConfig 模型中定义)
+  # fallback_feature_dim: 128 # 当无法从DGO推断特征维度时的后备值
+  # learned_hasher_model_path: null # (如果使用 learned_hash) 已训练的学习型哈希模型路径
+
+# --- 生成管理器配置 ---
+generation_manager:
+  max_library_size: 200 # 形态库的最大样本数量
+  max_generations_without_improvement: 50 # 连续多少代没有产生合格新样本则停止 ("improvement" = 新样本入库)
+  parent_selection_strategy: boundary_cases # 父本选择策略: "random", "high_confidence", "boundary_cases", "low_density_feature", "high_uncertainty"
+  dgo_acceptance_confidence_threshold: 0.6 # DGO确认为目标字符且入库的最低置信度
+  dgo_boundary_case_confidence_range: [0.4, 0.8] # 被认为是“边缘案例”的DGO置信度范围
+  dgo_high_confidence_threshold: 0.95 # 被认为是“高置信度”的DGO置信度阈值
+  dgo_finetune_trigger_new_samples: 30 # 每生成N个合格新样本后，考虑触发DGO微调
+  dgo_finetune_data_buffer_size: 100  # 存储用于DGO微调的 (图像,标签) 对的最大数量
+  simulated_human_feedback_interval: null # (高级功能占位) 每N个样本模拟一次人工反馈的间隔 (设为null则禁用)
+  simulated_human_feedback_batch_size: 10 # (高级功能占位) 模拟人工反馈时一次处理的样本数量
+  # (以下为示例添加的自定义字段，需在 GenerationManagerConfig 模型中定义)
+  num_initial_seeds: 5 # 初始种子样本的数量
+  min_library_size_for_advanced_parent_selection: 10 # 形态库达到此规模后才启用高级父本选择策略
+  # min_samples_for_dgo_finetune: 20 # 触发DGO微调所需的最少样本数
+  # enable_dgo_validation_stopping: false # 是否启用基于DGO验证集性能的停止条件
+
+# --- 日志配置 ---
+logging:
+  level: INFO # 日志级别: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+  log_to_file: true # 是否将日志输出到文件
+  log_file_path: generation_run.log # 日志文件名 (将位于 output_base_dir/reports/ 下)
+  log_to_console: true # 是否将日志输出到控制台
+  # 日志格式字符串
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s"
+
+# --- 关于自定义字段的说明 ---
+# 在YAML文件末尾的注释中提到了在Python Pydantic模型中需要定义的自定义字段。
+# 例如:
+# PerturbationSuiteConfig 模型中可能需要添加:
+#   max_perturb_sequence_len: int = 1
+#   dgo_guided_perturb_probability: float = 0.0
+# GenerationManagerConfig 模型中可能需要添加:
+#   num_initial_seeds: int = 5
+#   min_library_size_for_advanced_parent_selection: int = 10
+#   min_samples_for_dgo_finetune: int = 20
+#   enable_dgo_validation_stopping: bool = False
+# FeatureAnalysisConfig 模型中可能需要添加:
+#   fallback_feature_dim: int = 128
+#   learned_hasher_model_path: Optional[FilePath] = None
+# DGOOracleConfig 模型中，针对不同架构添加特定参数:
+#   resnet_initial_conv_stride: int = 1 (等等)
+#   base_cnn_fc_features: int = 128 (等等)
+#   vit_patch_size: int = 4 (等等)
+# 请确保这些字段在 `config.py` 中对应的Pydantic模型中被定义，否则它们在加载时可能会被忽略或导致错误。
