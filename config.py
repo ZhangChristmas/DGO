@@ -1,4 +1,6 @@
 # ultimate_morph_generator/config.py
+import os
+
 from pydantic import BaseModel, Field, DirectoryPath, FilePath
 from typing import List, Tuple, Dict, Optional, Literal, Union
 import torch
@@ -51,33 +53,48 @@ class StyleMixerConfig(BaseModel):
 class PerturbationSuiteConfig(BaseModel):
     max_attempts_per_parent: int = Field(30, ge=1)
     param_selection_strategy: PerturbationParamSelectionStrategyLiteral = "random"
+    # 新增字段示例 (确保在 Pydantic 模型中定义它们)
+    max_perturb_sequence_len: int = Field(default=3, ge=1)
+    dgo_guided_perturb_probability: float = Field(default=0.1, ge=0.0, le=1.0)
 
-    local_pixel: PerturbationMethodConfig = Field(
-        default_factory=lambda: PerturbationMethodConfig(probability_of_application=0.3, param_ranges={
-            "neighborhood_size": [3, 5],
-            "perturb_density": (0.01, 0.05),  # 多少比例的像素被扰动
-            "intensity_noise_range": (-20, 20)  # 强度变化范围
-        }))
-    elastic_deformation: PerturbationMethodConfig = Field(
-        default_factory=lambda: PerturbationMethodConfig(probability_of_application=0.5, param_ranges={
-            "alpha": (20.0, 60.0),  # 变形强度
-            "sigma": (3.0, 7.0),  # 高斯核标准差
-            "alpha_affine": (0.0, 15.0)  # 仿射强度
-        }))
-    fine_affine: PerturbationMethodConfig = Field(
-        default_factory=lambda: PerturbationMethodConfig(probability_of_application=0.5, param_ranges={
-            "max_rotation_degrees": 10.0,
-            "max_scale_delta": 0.15,  # e.g. 0.85 to 1.15
-            "max_shear_degrees_x": 8.0,
-            "max_shear_degrees_y": 8.0,
-            "translate_percent_x": (-0.05, 0.05),  # x方向平移占图像宽度的百分比
-            "translate_percent_y": (-0.05, 0.05),  # y方向平移占图像高度的百分比
-        }))
-    stroke_thickness_morph: PerturbationMethodConfig = Field(
-        default_factory=lambda: PerturbationMethodConfig(probability_of_application=0.2, param_ranges={
-            "operation_type": ["dilate", "erode"],  # 字符串列表
-            "kernel_size": [3, 5]  # 整数列表
-        }))
+    local_pixel: PerturbationMethodConfig = Field(default_factory=lambda: PerturbationMethodConfig(
+        enabled=True,
+        probability_of_application=0.3,
+        param_ranges={
+            "neighborhood_size": [3, 5], # 从列表中选择一个
+            "perturb_density": (0.01, 0.05)  # 从 (min, max) 均匀随机选择一个浮点数
+            # "intensity_noise_range": (-20, 20) # 如果要用这个参数，确保它被 base_transforms.py 处理
+        }
+    ))
+    elastic_deformation: PerturbationMethodConfig = Field(default_factory=lambda: PerturbationMethodConfig(
+        enabled=True,
+        probability_of_application=0.5,
+        param_ranges={
+            "alpha": (20.0, 60.0),
+            "sigma": (3.0, 7.0),
+            "alpha_affine": (0.0, 15.0)
+        }
+    ))
+    fine_affine: PerturbationMethodConfig = Field(default_factory=lambda: PerturbationMethodConfig(
+        enabled=True,
+        probability_of_application=0.5,
+        param_ranges={
+            "max_rotation_degrees": (1.0, 10.0),      # _get_params_from_config 会从中随机选一个值
+            "max_scale_delta": (0.05, 0.15),
+            "max_shear_degrees_x": (1.0, 8.0),
+            "max_shear_degrees_y": (1.0, 8.0),
+            "translate_percent_x": (-0.05, 0.05),
+            "translate_percent_y": (-0.05, 0.05),
+        }
+    ))
+    stroke_thickness_morph: PerturbationMethodConfig = Field(default_factory=lambda: PerturbationMethodConfig(
+        enabled=True,
+        probability_of_application=0.2,
+        param_ranges={
+            "operation_type": ["dilate", "erode"], # 从列表中选择一个
+            "kernel_size": [3, 5]                 # 从列表中选择一个
+        }
+    ))
     stroke_engine_perturbations: StrokeEngineConfig = Field(default_factory=StrokeEngineConfig)
     style_mixer: StyleMixerConfig = Field(default_factory=StyleMixerConfig)
 
@@ -176,8 +193,8 @@ class LoggingConfig(BaseModel):
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 
-class SystemConfig(BaseModel):  # (保持不变，除了添加 from_dict/from_yaml 方法)
-    project_name: str = "UltimateMorphGenerator"
+class SystemConfig(BaseModel):
+    project_name: str = "DGO"
     version: str = "1.0.0"
     target_character_index: int = Field(3, ge=0)
     target_character_string: str = "3"
@@ -194,7 +211,7 @@ class SystemConfig(BaseModel):  # (保持不变，除了添加 from_dict/from_ya
     generation_manager: GenerationManagerConfig = Field(default_factory=GenerationManagerConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
-    def get_actual_device(self) -> torch.device:  # (保持不变)
+    def get_actual_device(self) -> torch.device:
         if self.device == "auto":
             if torch.cuda.is_available():
                 return torch.device("cuda")
@@ -206,26 +223,26 @@ class SystemConfig(BaseModel):  # (保持不变，除了添加 from_dict/from_ya
 
     @classmethod
     def from_yaml(cls, file_path: str) -> "SystemConfig":
-        """Loads configuration from a YAML file."""
+        """从 YAML 文件加载配置。"""
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Configuration YAML file not found: {file_path}")
+            raise FileNotFoundError(f"配置文件 YAML 未找到: {file_path}")
         with open(file_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
-        if data is None:  # Handle empty YAML file
-            raise ValueError(f"YAML file is empty or invalid: {file_path}")
-        return cls.model_validate(data)  # Pydantic v2 method
+        if data is None:
+            raise ValueError(f"YAML 文件为空或无效: {file_path}")
+        return cls.model_validate(data)
 
     def to_yaml(self, file_path: str):
-        """Saves the current configuration to a YAML file."""
-        # Pydantic's model_dump is preferred for serialization
-        # mode='python' ensures enums are dumped as their values, etc.
-        # exclude_none=True can be useful to keep YAML cleaner if many Optionals are None
-        config_dict = self.model_dump(mode='json', exclude_none=False)  # 'json' mode is good for YAML
+        """将当前配置保存到 YAML 文件。"""
+        config_dict = self.model_dump(mode='json', exclude_none=False)
 
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)  # Ensure directory exists
+        dir_name = os.path.dirname(file_path)
+        if dir_name:  # 仅当 file_path 包含目录路径时才创建目录
+            os.makedirs(dir_name, exist_ok=True)
+
         with open(file_path, 'w', encoding='utf-8') as f:
             yaml.dump(config_dict, f, sort_keys=False, indent=2, allow_unicode=True)
-        print(f"Configuration saved to YAML: {file_path}")
+        print(f"配置已保存至 YAML: {file_path}")
 
 
 # --- Main function to load or create default config ---
@@ -281,7 +298,7 @@ if __name__ == "__main__":
     print("\nAttempting to load non-existent config (should use defaults):")
     cfg_non_existent = get_config(config_file_path="non_existent_config.yaml", reload=True)
     print(f"Project Name from non-existent load: {cfg_non_existent.project_name} (should be default)")
-    assert cfg_non_existent.project_name == "UltimateMorphGenerator"  # Assuming this is the default
+    assert cfg_non_existent.project_name == "DGO"  # Assuming this is the default
 
     # 4. Show how get_config acts as a singleton (without reload=True)
     print("\nTesting singleton behavior of get_config():")

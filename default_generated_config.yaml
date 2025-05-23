@@ -1,0 +1,158 @@
+project_name: DGO
+version: 1.0.0
+target_character_index: 3
+target_character_string: '3'
+confusable_character_indices:
+- 2
+- 8
+random_seed: 42
+device: auto
+data_management:
+  initial_samples_path_template: ./initial_data_pool/char_{char_string}/
+  output_base_dir: ./generated_morphologies/
+  database_filename: morphology_library.sqlite
+  image_archive_subfolder: image_files
+  image_file_format: .png
+  target_image_size:
+  - 28
+  - 28
+  grayscale_input: true
+dgo_oracle:
+  model_architecture: ResNetVariant
+  num_classes: 10
+  pretrained_model_path: null
+  feature_extraction_layer_name: avgpool
+  uncertainty_method: mc_dropout
+  mc_dropout_samples: 10
+  training_params:
+    batch_size: 64
+    learning_rate: 0.001
+    epochs_initial_training: 10
+    epochs_finetuning: 3
+    optimizer: AdamW
+    loss_function: CrossEntropyLoss
+    weight_decay: 0.0001
+    scheduler_step_size: null
+    scheduler_gamma: null
+    use_self_supervised_pretraining: false
+    continual_learning_strategy: ewc
+    ewc_lambda: 100.0
+    si_lambda: 1.0
+    agem_buffer_size: 100
+perturbation_suite:
+  max_attempts_per_parent: 30
+  param_selection_strategy: random
+  max_perturb_sequence_len: 3
+  dgo_guided_perturb_probability: 0.1
+  local_pixel:
+    enabled: true
+    probability_of_application: 0.3
+    param_ranges:
+      neighborhood_size:
+      - 3
+      - 5
+      perturb_density:
+      - 0.01
+      - 0.05
+  elastic_deformation:
+    enabled: true
+    probability_of_application: 0.5
+    param_ranges:
+      alpha:
+      - 20.0
+      - 60.0
+      sigma:
+      - 3.0
+      - 7.0
+      alpha_affine:
+      - 0.0
+      - 15.0
+  fine_affine:
+    enabled: true
+    probability_of_application: 0.5
+    param_ranges:
+      max_rotation_degrees:
+      - 1.0
+      - 10.0
+      max_scale_delta:
+      - 0.05
+      - 0.15
+      max_shear_degrees_x:
+      - 1.0
+      - 8.0
+      max_shear_degrees_y:
+      - 1.0
+      - 8.0
+      translate_percent_x:
+      - -0.05
+      - 0.05
+      translate_percent_y:
+      - -0.05
+      - 0.05
+  stroke_thickness_morph:
+    enabled: true
+    probability_of_application: 0.2
+    param_ranges:
+      operation_type:
+      - dilate
+      - erode
+      kernel_size:
+      - 3
+      - 5
+  stroke_engine_perturbations:
+    enabled: false
+    extractor_type: skeletonization_vectorization
+    deep_learning_model_path: null
+    min_stroke_length: 5
+    perturbation_probability: 0.3
+  style_mixer:
+    enabled: false
+    style_source_dir: null
+    strength_range:
+    - 0.05
+    - 0.2
+structure_guard:
+  basic_topology:
+    enabled: true
+    rules_for_char:
+      '3':
+        expected_holes: 2
+        min_hole_area: 10
+        char_threshold: 80
+        opening_directions:
+        - right
+        - right
+      '8':
+        expected_holes: 2
+        min_hole_area: 5
+        char_threshold: 80
+  advanced_topology:
+    enabled: false
+    persistent_homology_params: {}
+    graph_representation_params: {}
+feature_analysis:
+  hashing_method: simhash_projection
+  hash_length: 128
+  novelty_hamming_distance_threshold_ratio: 0.15
+  diversity_strategy: explore_low_density
+  feature_space_density_estimator: kde
+  kde_bandwidth: 0.5
+generation_manager:
+  max_library_size: 1000
+  max_generations_without_improvement: 200
+  parent_selection_strategy: boundary_cases
+  dgo_acceptance_confidence_threshold: 0.6
+  dgo_boundary_case_confidence_range:
+  - 0.4
+  - 0.8
+  dgo_high_confidence_threshold: 0.95
+  dgo_finetune_trigger_new_samples: 50
+  dgo_finetune_data_buffer_size: 200
+  simulated_human_feedback_interval: null
+  simulated_human_feedback_batch_size: 10
+logging:
+  level: INFO
+  log_to_file: true
+  log_file_path: generation_run.log
+  log_to_console: true
+  log_format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
